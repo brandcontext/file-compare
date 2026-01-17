@@ -291,29 +291,26 @@
 		<div class="container">
 			<div class="header">
 				<h1>📊 JSON Comparison Tool</h1>
-				<p>Upload original and cleaned JSON files to see what changes were made</p>
+				<p>Upload JSON files in bulk - automatically matches originals with -cleaned versions</p>
 			</div>
 
-			<div class="upload-section">
-				<div class="file-upload" id="originalUpload">
-					<input type="file" id="originalFile" accept=".json" />
-					<div class="file-upload-icon">📄</div>
-					<h3>Original JSON</h3>
-					<p>Click or drag to upload</p>
-					<div class="file-name" id="originalFileName" style="display: none"></div>
-				</div>
-
-				<div class="file-upload" id="cleanedUpload">
-					<input type="file" id="cleanedFile" accept=".json" />
-					<div class="file-upload-icon">✨</div>
-					<h3>Cleaned JSON</h3>
-					<p>Click or drag to upload</p>
-					<div class="file-name" id="cleanedFileName" style="display: none"></div>
+			<div class="upload-section" style="grid-template-columns: 1fr">
+				<div class="file-upload" id="bulkUpload">
+					<input type="file" id="bulkFiles" accept=".json" multiple />
+					<div class="file-upload-icon">📁</div>
+					<h3>Upload JSON Files (Bulk)</h3>
+					<p>Select multiple JSON files (originals and cleaned versions)</p>
+					<div class="file-name" id="bulkFileNames" style="display: none"></div>
 				</div>
 			</div>
 
 			<div class="controls">
-				<button class="btn" id="compareBtn" disabled>Compare Files</button>
+				<button class="btn" id="compareBtn" disabled>Compare All Matched Files</button>
+			</div>
+
+			<div id="matchedPairs" style="padding: 20px 40px; display: none">
+				<h3 style="margin-bottom: 15px; color: #667eea">Matched File Pairs:</h3>
+				<div id="pairsList"></div>
 			</div>
 
 			<div class="results" id="results">
@@ -323,55 +320,130 @@
 		</div>
 
 		<script>
-			let originalData = null;
-			let cleanedData = null;
+			let filePairs = [];
 
-			// File upload handlers
-			document.getElementById("originalFile").addEventListener("change", function (e) {
-				handleFileUpload(e.target.files[0], "original");
+			// Bulk file upload handler
+			document.getElementById("bulkFiles").addEventListener("change", function (e) {
+				handleBulkUpload(e.target.files);
 			});
 
-			document.getElementById("cleanedFile").addEventListener("change", function (e) {
-				handleFileUpload(e.target.files[0], "cleaned");
-			});
+			function handleBulkUpload(files) {
+				if (!files || files.length === 0) return;
 
-			function handleFileUpload(file, type) {
-				if (!file) return;
+				const fileMap = new Map();
+				const cleanedFiles = new Map();
+				let processedCount = 0;
 
-				const reader = new FileReader();
-				reader.onload = function (e) {
-					try {
-						const data = JSON.parse(e.target.result);
+				// First pass: organize files
+				Array.from(files).forEach((file) => {
+					const fileName = file.name;
 
-						if (type === "original") {
-							originalData = data;
-							document.getElementById("originalFileName").textContent = file.name;
-							document.getElementById("originalFileName").style.display = "block";
-							document.getElementById("originalUpload").classList.add("loaded");
-						} else {
-							cleanedData = data;
-							document.getElementById("cleanedFileName").textContent = file.name;
-							document.getElementById("cleanedFileName").style.display = "block";
-							document.getElementById("cleanedUpload").classList.add("loaded");
-						}
-
-						// Enable compare button if both files loaded
-						if (originalData && cleanedData) {
-							document.getElementById("compareBtn").disabled = false;
-						}
-					} catch (error) {
-						alert("Error parsing JSON file: " + error.message);
+					if (fileName.includes("-cleaned.json")) {
+						// This is a cleaned file
+						const baseName = fileName.replace("-cleaned.json", ".json");
+						cleanedFiles.set(baseName, file);
+					} else {
+						// This is an original file
+						fileMap.set(fileName, file);
 					}
-				};
-				reader.readAsText(file);
+				});
+
+				// Match pairs
+				filePairs = [];
+				fileMap.forEach((originalFile, fileName) => {
+					const cleanedFile = cleanedFiles.get(fileName);
+					if (cleanedFile) {
+						filePairs.push({
+							originalFile: originalFile,
+							cleanedFile: cleanedFile,
+							name: fileName,
+						});
+					}
+				});
+
+				if (filePairs.length === 0) {
+					alert("No matching pairs found! Make sure you have both original and -cleaned versions of files.");
+					return;
+				}
+
+				// Load all file pairs
+				loadFilePairs();
+			}
+
+			function loadFilePairs() {
+				let loadedPairs = 0;
+
+				filePairs.forEach((pair, index) => {
+					// Load original file
+					const originalReader = new FileReader();
+					originalReader.onload = function (e) {
+						try {
+							pair.originalData = JSON.parse(e.target.result);
+							checkPairLoaded();
+						} catch (error) {
+							console.error(`Error parsing ${pair.originalFile.name}:`, error);
+						}
+					};
+					originalReader.readAsText(pair.originalFile);
+
+					// Load cleaned file
+					const cleanedReader = new FileReader();
+					cleanedReader.onload = function (e) {
+						try {
+							pair.cleanedData = JSON.parse(e.target.result);
+							checkPairLoaded();
+						} catch (error) {
+							console.error(`Error parsing ${pair.cleanedFile.name}:`, error);
+						}
+					};
+					cleanedReader.readAsText(pair.cleanedFile);
+				});
+
+				function checkPairLoaded() {
+					loadedPairs++;
+					if (loadedPairs === filePairs.length * 2) {
+						// All files loaded
+						displayMatchedPairs();
+						document.getElementById("compareBtn").disabled = false;
+						document.getElementById("bulkUpload").classList.add("loaded");
+						document.getElementById("bulkFileNames").textContent = `${filePairs.length} pair(s) loaded`;
+						document.getElementById("bulkFileNames").style.display = "block";
+					}
+				}
+			}
+
+			function displayMatchedPairs() {
+				const pairsDiv = document.getElementById("pairsList");
+				const matchedDiv = document.getElementById("matchedPairs");
+
+				matchedDiv.style.display = "block";
+
+				pairsDiv.innerHTML = filePairs
+					.map(
+						(pair, index) => `
+					<div style="padding: 10px; margin: 5px 0; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #0284c7;">
+						<strong>${index + 1}.</strong> ${pair.name} ↔️ ${pair.cleanedFile.name}
+					</div>
+				`
+					)
+					.join("");
 			}
 
 			// Compare button handler
 			document.getElementById("compareBtn").addEventListener("click", function () {
-				if (!originalData || !cleanedData) return;
+				if (filePairs.length === 0) return;
 
-				const differences = compareJSON(originalData, cleanedData);
-				displayResults(differences);
+				const allDifferences = [];
+
+				filePairs.forEach((pair) => {
+					const differences = compareJSON(pair.originalData, pair.cleanedData);
+					differences.forEach((diff) => {
+						diff.fileName = pair.name;
+						allDifferences.push(diff);
+					});
+				});
+
+				displayResults(allDifferences);
 			});
 
 			function compareJSON(original, cleaned, path = "") {
@@ -442,12 +514,60 @@
 				if (original.match(/_{2,}/g)) removed.push("extra underscores");
 
 				// Find escaped quotes
-				if (original.match(/\\"/g)) removed.push('escaped quotes');
+				if (original.match(/\\"/g)) removed.push("escaped quotes");
 
 				// Find ellipsis
 				if (original.match(/…/g)) removed.push("ellipsis");
 
 				return removed;
+			}
+
+			function highlightRemovedText(original, cleaned) {
+				if (typeof original !== "string" || typeof cleaned !== "string") {
+					return escapeHtml(original);
+				}
+
+				let highlighted = original;
+
+				// Highlight superscript numbers
+				highlighted = highlighted.replace(/([¹²³⁴⁵⁶⁷⁸⁹⁰]+)/g, '<span class="diff-highlight">$1</span>');
+
+				// Highlight extra spaces (2 or more consecutive spaces)
+				highlighted = highlighted.replace(/(  +)/g, '<span class="diff-highlight">$1</span>');
+
+				// Highlight "learn more"
+				highlighted = highlighted.replace(/(learn\s+more)/gi, '<span class="diff-highlight">$1</span>');
+
+				// Highlight "terms and conditions"
+				highlighted = highlighted.replace(
+					/(terms\s+and\s+conditions?)/gi,
+					'<span class="diff-highlight">$1</span>'
+				);
+				highlighted = highlighted.replace(
+					/(terms\s*&\s*conditions?)/gi,
+					'<span class="diff-highlight">$1</span>'
+				);
+
+				// Highlight extra quotes
+				highlighted = highlighted.replace(/(''{2,})/g, '<span class="diff-highlight">$1</span>');
+				highlighted = highlighted.replace(/("{2,})/g, '<span class="diff-highlight">$1</span>');
+
+				// Highlight extra dots
+				highlighted = highlighted.replace(/(\.{2,})/g, '<span class="diff-highlight">$1</span>');
+
+				// Highlight extra asterisks
+				highlighted = highlighted.replace(/(\*{2,})/g, '<span class="diff-highlight">$1</span>');
+
+				// Highlight extra underscores
+				highlighted = highlighted.replace(/(_{2,})/g, '<span class="diff-highlight">$1</span>');
+
+				// Highlight escaped quotes
+				highlighted = highlighted.replace(/(\\["'])/g, '<span class="diff-highlight">$1</span>');
+
+				// Highlight ellipsis
+				highlighted = highlighted.replace(/(…)/g, '<span class="diff-highlight">$1</span>');
+
+				return highlighted;
 			}
 
 			function displayResults(differences) {
@@ -461,6 +581,7 @@
 				const totalChanges = differences.length;
 				const modifiedFields = differences.filter((d) => d.type === "modified").length;
 				const removedFields = differences.filter((d) => d.type === "removed").length;
+				const fileCount = filePairs.length;
 
 				// Count what was removed
 				const removedItems = {
@@ -494,6 +615,10 @@
 				// Display stats
 				statsDiv.innerHTML = `
                 <div class="stat-card">
+                    <h3>${fileCount}</h3>
+                    <p>Files Compared</p>
+                </div>
+                <div class="stat-card">
                     <h3>${totalChanges}</h3>
                     <p>Total Changes</p>
                 </div>
@@ -524,7 +649,7 @@
 					changesDiv.innerHTML = `
                     <div class="no-changes">
                         <h2>✅ No Changes Detected</h2>
-                        <p>The files appear to be identical</p>
+                        <p>All files appear to be identical</p>
                     </div>
                 `;
 				} else {
@@ -537,16 +662,27 @@
 							const cleanedText =
 								typeof diff.cleaned === "string" ? diff.cleaned : JSON.stringify(diff.cleaned, null, 2);
 
+							// Highlight removed text in original
+							const highlightedOriginal =
+								typeof diff.original === "string"
+									? highlightRemovedText(diff.original, diff.cleaned)
+									: escapeHtml(JSON.stringify(diff.original, null, 2));
+
 							return `
                         <div class="change-item">
                             <div class="change-header">
-                                <span class="change-path">${diff.path}</span>
+                                <div>
+                                    <div style="font-size: 0.85em; color: #0284c7; margin-bottom: 5px;">📄 ${
+										diff.fileName
+									}</div>
+                                    <span class="change-path">${diff.path}</span>
+                                </div>
                                 <span class="change-type ${diff.type}">${diff.type.toUpperCase()}</span>
                             </div>
                             <div class="text-comparison">
                                 <div class="text-block original-text">
                                     <h4>Original</h4>
-                                    <pre>${escapeHtml(originalText)}</pre>
+                                    <pre>${highlightedOriginal}</pre>
                                 </div>
                                 <div class="text-block cleaned-text">
                                     <h4>Cleaned</h4>
