@@ -298,6 +298,33 @@ body {
 	border-color: #667eea;
 }
 
+#goToTopBtn {
+	position: fixed;
+	bottom: 30px;
+	right: 30px;
+	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	color: white;
+	border: none;
+	border-radius: 50%;
+	width: 50px;
+	height: 50px;
+	font-size: 24px;
+	cursor: pointer;
+	box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+	display: none;
+	transition: all 0.3s;
+	z-index: 1000;
+}
+
+#goToTopBtn:hover {
+	transform: translateY(-3px);
+	box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+#goToTopBtn.show {
+	display: block;
+}
+
 @media (max-width: 768px) {
 	.upload-section {
 		grid-template-columns: 1fr;
@@ -305,5 +332,13 @@ body {
 
 	.text-comparison {
 		grid-template-columns: 1fr;
+	}
+
+	#goToTopBtn {
+		bottom: 20px;
+		right: 20px;
+		width: 45px;
+		height: 45px;
+		font-size: 20px;
 	}
 }

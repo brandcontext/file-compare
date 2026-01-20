@@ -1,6 +1,26 @@
 let filePairs = [];
 let filesToClean = [];
 
+// ========== GO TO TOP BUTTON ==========
+const goToTopBtn = document.getElementById('goToTopBtn');
+
+// Show button when user scrolls down 300px from top
+window.addEventListener('scroll', () => {
+    if (window.pageYOffset > 300) {
+        goToTopBtn.classList.add('show');
+    } else {
+        goToTopBtn.classList.remove('show');
+    }
+});
+
+// Scroll to top when button is clicked
+goToTopBtn.addEventListener('click', () => {
+    window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+    });
+});
+
 // ========== CLEANING FUNCTIONS (from clean_json.js) ==========
 
 function removeSuperscriptNumbers(text) {
